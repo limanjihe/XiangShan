@@ -28,7 +28,7 @@ import xiangshan.backend.Bundles
 import xiangshan.backend.Bundles.{DynInst, MemExuOutput}
 import xiangshan.backend.fu.FuConfig.LduCfg
 
-class UncacheBufferEntry(entryIndex: Int)(implicit p: Parameters) extends XSModule
+class IOBufferEntry(entryIndex: Int)(implicit p: Parameters) extends XSModule
   with HasCircularQueuePtrHelper
   with HasLoadHelper
 {
@@ -201,7 +201,7 @@ class UncacheBufferEntry(entryIndex: Int)(implicit p: Parameters) extends XSModu
   // end
 }
 
-class UncacheBuffer(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHelper {
+class IOBuffer(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHelper {
   val io = IO(new Bundle() {
     // control
     val redirect = Flipped(Valid(new Redirect))
@@ -226,7 +226,7 @@ class UncacheBuffer(implicit p: Parameters) extends XSModule with HasCircularQue
     val exception = Valid(new LqWriteBundle)
   })
 
-  val entries = Seq.tabulate(LoadUncacheBufferSize)(i => Module(new UncacheBufferEntry(i)))
+  val entries = Seq.tabulate(LoadUncacheBufferSize)(i => Module(new IOBufferEntry(i)))
 
   // freelist: store valid entries index.
   // +---+---+--------------+-----+-----+
