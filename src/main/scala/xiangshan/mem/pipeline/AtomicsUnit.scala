@@ -30,6 +30,7 @@ import xiangshan.backend.fu.PMPRespBundle
 import xiangshan.backend.Bundles.{MemExuInput, MemExuOutput}
 import xiangshan.backend.fu.NewCSR.TriggerUtil
 import xiangshan.backend.fu.util.SdtrigExt
+import xiangshan.cache.mmu.Pbmt
 
 class AtomicsUnit(implicit p: Parameters) extends XSModule
   with MemoryOpConstants
@@ -71,6 +72,7 @@ class AtomicsUnit(implicit p: Parameters) extends XSModule
   val gpaddr = Reg(UInt())
   val vaddr = in.src(0)
   val is_mmio = Reg(Bool())
+  val is_nc = RegInit(false.B)
   val isForVSnonLeafPTE = Reg(Bool())
 
   // dcache response data
@@ -182,6 +184,7 @@ class AtomicsUnit(implicit p: Parameters) extends XSModule
       exceptionVec(loadGuestPageFault)  := io.dtlb.resp.bits.excp(0).gpf.ld
 
       when (!io.dtlb.resp.bits.miss) {
+        is_nc := Pbmt.isNC(io.dtlb.resp.bits.pbmt(0))
         io.out.bits.uop.debugInfo.tlbRespTime := GTimer()
         when (!addrAligned) {
           // NOTE: when addrAligned, do not need to wait tlb actually
@@ -197,9 +200,10 @@ class AtomicsUnit(implicit p: Parameters) extends XSModule
     }
   }
 
+  val pbmtReg = RegEnable(io.dtlb.resp.bits.pbmt(0), io.dtlb.resp.fire && !io.dtlb.resp.bits.miss)
   when (state === s_pm) {
     val pmp = WireInit(io.pmpResp)
-    is_mmio := pmp.mmio
+    is_mmio := Pbmt.isIO(pbmtReg) || (Pbmt.isPMA(pbmtReg) && pmp.mmio)
 
     // NOTE: only handle load/store exception here, if other exception happens, don't send here
     val exception_va = exceptionVec(storePageFault) || exceptionVec(loadPageFault) ||
@@ -365,6 +369,7 @@ class AtomicsUnit(implicit p: Parameters) extends XSModule
   io.out.bits.uop.exceptionVec := exceptionVec
   io.out.bits.data := resp_data
   io.out.bits.debug.isMMIO := is_mmio
+  io.out.bits.debug.isNC := is_nc
   io.out.bits.debug.paddr := paddr
   when (io.out.fire) {
     XSDebug("atomics writeback: pc %x data %x\n", io.out.bits.uop.pc, io.dcache.resp.bits.data)
